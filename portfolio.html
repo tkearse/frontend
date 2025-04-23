@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Portfolio</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script>
+      function checkIfLoggedIn() {
+        const token = localStorage.getItem('token');
+        const username = localStorage.getItem('username');
+        if (!token || !username) window.location.href = 'portfolio.html';
+      }
+      checkIfLoggedIn();
+    </script>
+  </head>
+  <body>
+    <header>
+      <h1>Stock Trading System</h1>
+      <nav>
+        <ul>
+          <li><a href="index.html">Home</a></li>
+          <li><a href="trade.html">Trade</a></li>
+          <li>
+            <b><a href="portfolio.html">Portfolio</a></b>
+          </li>
+          <li class="admin-link" style="display: none">
+            <a href="admin.html">Admin</a>
+          </li>
+        </ul>
+      </nav>
+    </header>
+
+    <div id="time-display">
+      <p>Market Time (EST): <span id="est-time"></span></p>
+    </div>
+
+    <h2 id="logged-in-user"></h2>
+    <button id="logout-button">Logout</button>
+    <section id="cash-account">
+      <h2>Cash Account</h2>
+      <p>Balance: $<span id="cash-balance">0.00</span></p>
+      <input type="number" id="cash-amount" placeholder="Enter amount" />
+      <button id="deposit-button">Deposit</button>
+      <button id="withdraw-button">Withdraw</button>
+    </section>
+
+    <section id="portfolio-section">
+      <h2>Portfolio</h2>
+      <table id="portfolio-table">
+        <thead>
+          <tr>
+            <th>Stock Name</th>
+            <th>Ticker</th>
+            <th>Quantity</th>
+            <th>Price</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section id="transactions-section">
+      <h2>Transaction History</h2>
+      <table id="transactions-table">
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>Stock Name</th>
+            <th>Ticker</th>
+            <th>Price</th>
+            <th>Quantity</th>
+            <th>Total Price</th>
+            <th>Timestamp</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <script>
+      function updateTimes() {
+        const estTimeElement = document.getElementById('est-time');
+
+        const now = new Date();
+        const options = {
+          timeZone: 'America/New_York',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: true,
+        };
+        const estTime = new Intl.DateTimeFormat('en-US', options).format(now);
+
+        estTimeElement.textContent = estTime;
+      }
+
+      setInterval(updateTimes, 1000);
+      updateTimes();
+
+      function displayLoggedInUser() {
+        const username = localStorage.getItem('username');
+        const userDisplay = document.getElementById('logged-in-user');
+        userDisplay.textContent = username
+          ? `Logged in as: ${username}`
+          : 'No user is logged in.';
+      }
+      displayLoggedInUser();
+
+      function logout() {
+        localStorage.removeItem('token');
+        localStorage.removeItem('username');
+        localStorage.removeItem('role');
+        window.location.href = 'login.html';
+      }
+      document
+        .getElementById('logout-button')
+        .addEventListener('click', logout);
+
+      function displayLinksBasedOnRole() {
+        const role = localStorage.getItem('role');
+        const adminLinks = document.querySelectorAll('.admin-link');
+        adminLinks.forEach(
+          (link) => (link.style.display = role === 'admin' ? 'block' : 'none')
+        );
+      }
+      displayLinksBasedOnRole();
+
+      document.addEventListener('DOMContentLoaded', () => {
+        const cashBalanceElement = document.getElementById('cash-balance');
+        const cashAmountInput = document.getElementById('cash-amount');
+        const depositButton = document.getElementById('deposit-button');
+        const withdrawButton = document.getElementById('withdraw-button');
+
+        async function fetchCashBalance() {
+          try {
+            const response = await fetch(
+              'http://localhost:5000/api/users/cash-balance',
+              {
+                headers: {
+                  Authorization: `Bearer ${localStorage.getItem('token')}`,
+                },
+              }
+            );
+            if (!response.ok) {
+              const error = await response.json();
+              alert(`Error fetching cash balance: ${error.message}`);
+              return;
+            }
+            const data = await response.json();
+            cashBalanceElement.textContent = data.cashBalance.toFixed(2);
+          } catch (error) {
+            console.error('Error fetching cash balance:', error);
+          }
+        }
+
+        depositButton.addEventListener('click', async () => {
+          const amount = parseFloat(cashAmountInput.value);
+          if (isNaN(amount) || amount <= 0) {
+            alert('Please enter a valid amount');
+            return;
+          }
+          try {
+            const response = await fetch(
+              'http://localhost:5000/api/users/deposit',
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${localStorage.getItem('token')}`,
+                },
+                body: JSON.stringify({ amount }),
+              }
+            );
+            if (!response.ok) {
+              const error = await response.json();
+              alert(`Error depositing cash: ${error.message}`);
+              return;
+            }
+            const data = await response.json();
+            cashBalanceElement.textContent = data.cashBalance.toFixed(2);
+            cashAmountInput.value = '';
+          } catch (error) {
+            console.error('Error depositing cash:', error);
+          }
+        });
+
+        withdrawButton.addEventListener('click', async () => {
+          const amount = parseFloat(cashAmountInput.value);
+          if (isNaN(amount) || amount <= 0) {
+            alert('Please enter a valid amount');
+            return;
+          }
+          try {
+            const response = await fetch(
+              'http://localhost:5000/api/users/withdraw',
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${localStorage.getItem('token')}`,
+                },
+                body: JSON.stringify({ amount }),
+              }
+            );
+            if (!response.ok) {
+              const error = await response.json();
+              alert(`Error withdrawing cash: ${error.message}`);
+              return;
+            }
+            const data = await response.json();
+            cashBalanceElement.textContent = data.cashBalance.toFixed(2);
+            cashAmountInput.value = '';
+          } catch (error) {
+            console.error('Error withdrawing cash:', error);
+          }
+        });
+
+        fetchCashBalance();
+      });
+
+      document.addEventListener('DOMContentLoaded', async () => {
+        const portfolioTableBody = document
+          .getElementById('portfolio-table')
+          .querySelector('tbody');
+        const transactionsTableBody = document
+          .getElementById('transactions-table')
+          .querySelector('tbody');
+
+        async function fetchPortfolioAndTransactions() {
+          try {
+            const response = await fetch(
+              'http://localhost:5000/api/trade/portfolio',
+              {
+                headers: {
+                  Authorization: `Bearer ${localStorage.getItem('token')}`,
+                },
+              }
+            );
+            if (!response.ok) {
+              const error = await response.json();
+              alert(`Error fetching portfolio: ${error.message}`);
+              return;
+            }
+            const data = await response.json();
+
+            portfolioTableBody.innerHTML = '';
+            data.portfolio.forEach((item) => {
+              const row = document.createElement('tr');
+              row.innerHTML = `
+                <td>${item.stockName}</td>
+                <td>${item.ticker}</td>
+                <td>${item.quantity}</td>
+                <td>$${item.price.toFixed(2)}</td>
+                <td>
+                  <button class="buy-button" data-ticker="${
+                    item.ticker
+                  }">Buy</button>
+                  <button class="sell-button" data-ticker="${
+                    item.ticker
+                  }">Sell</button>
+                </td>`;
+              portfolioTableBody.appendChild(row);
+            });
+
+            transactionsTableBody.innerHTML = '';
+            data.transactions.forEach((transaction) => {
+              const row = document.createElement('tr');
+              row.innerHTML = `
+                <td>${transaction.type}</td>
+                <td>${transaction.stockName}</td>
+                <td>${transaction.ticker}</td>
+                <td>$${transaction.price.toFixed(2)}</td>
+                <td>${transaction.quantity}</td>
+                <td>$${transaction.totalPrice.toFixed(2)}</td>
+                <td>${new Date(transaction.timestamp).toLocaleString()}</td>`;
+              transactionsTableBody.appendChild(row);
+            });
+          } catch (error) {
+            console.error('Error fetching portfolio and transactions:', error);
+          }
+        }
+
+        async function checkMarketStatus() {
+          try {
+            const response = await fetch(
+              'http://localhost:5000/api/admin/market-hours/is-open',
+              {
+                headers: {
+                  Authorization: `Bearer ${localStorage.getItem('token')}`,
+                },
+              }
+            );
+            if (!response.ok) {
+              const error = await response.json();
+              console.error(`Error checking market status: ${error.message}`);
+              return false;
+            }
+            const data = await response.json();
+            return data.isOpen;
+          } catch (error) {
+            console.error('Error checking market status:', error);
+            return false;
+          }
+        }
+
+        async function updateButtonStates() {
+          const isMarketOpen = await checkMarketStatus();
+          const buyButtons = document.querySelectorAll('.buy-button');
+          const sellButtons = document.querySelectorAll('.sell-button');
+          buyButtons.forEach((button) => (button.disabled = !isMarketOpen));
+          sellButtons.forEach((button) => (button.disabled = !isMarketOpen));
+        }
+
+        fetchPortfolioAndTransactions().then(updateButtonStates);
+        setInterval(updateButtonStates, 60000);
+
+        document
+          .getElementById('portfolio-table')
+          .addEventListener('click', async (event) => {
+            const target = event.target;
+            if (target.classList.contains('buy-button')) {
+              const ticker = target.dataset.ticker;
+              const quantity = parseInt(
+                prompt(`How many shares of ${ticker} would you like to buy?`),
+                10
+              );
+              if (isNaN(quantity) || quantity <= 0) {
+                alert('Invalid quantity');
+                return;
+              }
+              try {
+                const response = await fetch(
+                  'http://localhost:5000/api/trade/buy',
+                  {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      Authorization: `Bearer ${localStorage.getItem('token')}`,
+                    },
+                    body: JSON.stringify({ ticker, quantity }),
+                  }
+                );
+                if (!response.ok) {
+                  const error = await response.json();
+                  alert(`Error buying stock: ${error.message}`);
+                  return;
+                }
+                const data = await response.json();
+                alert('Stock purchased successfully!');
+                document.getElementById('cash-balance').textContent =
+                  data.cashBalance.toFixed(2);
+                fetchPortfolioAndTransactions();
+              } catch (error) {
+                console.error('Error buying stock:', error);
+              }
+            } else if (target.classList.contains('sell-button')) {
+              const ticker = target.dataset.ticker;
+              const quantity = parseInt(
+                prompt(`How many shares of ${ticker} would you like to sell?`),
+                10
+              );
+              if (isNaN(quantity) || quantity <= 0) {
+                alert('Invalid quantity');
+                return;
+              }
+              try {
+                const response = await fetch(
+                  'http://localhost:5000/api/trade/sell',
+                  {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      Authorization: `Bearer ${localStorage.getItem('token')}`,
+                    },
+                    body: JSON.stringify({ ticker, quantity }),
+                  }
+                );
+                if (!response.ok) {
+                  const error = await response.json();
+                  alert(`Error selling stock: ${error.message}`);
+                  return;
+                }
+                const data = await response.json();
+                alert('Stock sold successfully!');
+                document.getElementById('cash-balance').textContent =
+                  data.cashBalance.toFixed(2);
+                fetchPortfolioAndTransactions();
+              } catch (error) {
+                console.error('Error selling stock:', error);
+              }
+            }
+          });
+      });
+    </script>
+  </body>
+</html>

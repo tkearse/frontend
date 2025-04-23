@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Trade</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script>
+      function checkIfLoggedIn() {
+        const token = localStorage.getItem('token');
+        const username = localStorage.getItem('username');
+        if (!token || !username) window.location.href = 'trade.html';
+      }
+      checkIfLoggedIn();
+    </script>
+  </head>
+  <body>
+    <header>
+      <h1>Stock Trading System</h1>
+      <nav>
+        <ul>
+          <li><a href="index.html">Home</a></li>
+          <li>
+            <b><a href="trade.html">Trade</a></b>
+          </li>
+          <li><a href="portfolio.html">Portfolio</a></li>
+          <li class="admin-link" style="display: none">
+            <a href="admin.html">Admin</a>
+          </li>
+        </ul>
+      </nav>
+    </header>
+    <div id="time-display">
+      <p>Market Time (EST): <span id="est-time"></span></p>
+    </div>
+    <h2 id="logged-in-user"></h2>
+    <button id="logout-button">Logout</button>
+    <table id="item-table" border="1">
+      <thead>
+        <tr>
+          <th>Stock Name</th>
+          <th>Ticker</th>
+          <th>Volume</th>
+          <th>Price</th>
+          <th>Highest Price</th>
+          <th>Lowest Price</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <script>
+      let isFetching = false;
+
+      function updateTimes() {
+        const estTimeElement = document.getElementById('est-time');
+        const now = new Date();
+        const options = {
+          timeZone: 'America/New_York',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: true,
+        };
+        estTimeElement.textContent = new Intl.DateTimeFormat(
+          'en-US',
+          options
+        ).format(now);
+      }
+      setInterval(updateTimes, 1000);
+      updateTimes();
+
+      async function fetchItems() {
+        if (isFetching) return;
+        isFetching = true;
+        try {
+          const response = await fetch(`http://52.90.144.175:5000/api/items`, {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem('token')}`,
+            },
+          });
+          if (!response.ok) {
+            const error = await response.json();
+            alert(`Error fetching items: ${error.message}`);
+            return;
+          }
+          const data = await response.json();
+          const tableBody = document
+            .getElementById('item-table')
+            .querySelector('tbody');
+          tableBody.innerHTML = '';
+          const fragment = document.createDocumentFragment();
+          data.items.forEach((item) => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+              <td>${item.stockName}</td>
+              <td>${item.ticker}</td>
+              <td>${item.volume}</td>
+              <td>$${item.price.toFixed(2)}</td>
+              <td>$${item.highestPrice.toFixed(2)}</td>
+              <td>$${item.lowestPrice.toFixed(2)}</td>
+              <td>
+                <button class="buy-button" data-id="${item._id}">Buy</button>
+                <button class="sell-button" data-id="${item._id}">Sell</button>
+              </td>`;
+            fragment.appendChild(row);
+          });
+          tableBody.appendChild(fragment);
+        } catch (error) {
+          console.error('Error fetching items:', error);
+        } finally {
+          isFetching = false;
+        }
+      }
+
+      setInterval(() => fetchItems().then(updateButtonStates), 5000);
+
+      document
+        .getElementById('item-table')
+        .addEventListener('click', async (event) => {
+          const target = event.target;
+          if (target.classList.contains('buy-button')) {
+            const itemId = target.dataset.id;
+            const stockName = target.closest('tr').children[0].textContent;
+            const ticker = target.closest('tr').children[1].textContent;
+            const price = parseFloat(
+              target.closest('tr').children[3].textContent.replace('$', '')
+            );
+            const quantity = parseInt(
+              prompt(
+                `Current Price: $${price}\nHow many shares of ${stockName} (${ticker}) would you like to buy?`
+              ),
+              10
+            );
+            if (isNaN(quantity) || quantity <= 0) {
+              alert('Invalid quantity');
+              return;
+            }
+            try {
+              const response = await fetch(
+                'http://52.90.144.175:5000/api/trade/buy',
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${localStorage.getItem('token')}`,
+                  },
+                  body: JSON.stringify({ ticker, quantity }),
+                }
+              );
+              if (!response.ok) {
+                const error = await response.json();
+                alert(`Error buying stock: ${error.message}`);
+                return;
+              }
+              alert('Stock purchased successfully!');
+              fetchItems().then(updateButtonStates);
+            } catch (error) {
+              console.error('Error buying stock:', error);
+            }
+          } else if (target.classList.contains('sell-button')) {
+            const itemId = target.dataset.id;
+            const stockName = target.closest('tr').children[0].textContent;
+            const ticker = target.closest('tr').children[1].textContent;
+            const price = parseFloat(
+              target.closest('tr').children[3].textContent.replace('$', '')
+            );
+            const quantity = parseInt(
+              prompt(
+                `Current Price: $${price}\nHow many shares of ${stockName} (${ticker}) would you like to sell?`
+              ),
+              10
+            );
+            if (isNaN(quantity) || quantity <= 0) {
+              alert('Invalid quantity');
+              return;
+            }
+            try {
+              const response = await fetch(
+                'http://52.90.144.175:5000/api/trade/sell',
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${localStorage.getItem('token')}`,
+                  },
+                  body: JSON.stringify({ ticker, quantity }),
+                }
+              );
+              if (!response.ok) {
+                const error = await response.json();
+                alert(`Error selling stock: ${error.message}`);
+                return;
+              }
+              alert('Stock sold successfully!');
+              fetchItems().then(updateButtonStates);
+            } catch (error) {
+              console.error('Error selling stock:', error);
+            }
+          }
+        });
+
+      fetchItems().then(updateButtonStates);
+
+      function displayLoggedInUser() {
+        const username = localStorage.getItem('username');
+        const userDisplay = document.getElementById('logged-in-user');
+        userDisplay.textContent = username
+          ? `Logged in as: ${username}`
+          : 'No user is logged in.';
+      }
+      displayLoggedInUser();
+
+      function logout() {
+        localStorage.removeItem('token');
+        localStorage.removeItem('username');
+        localStorage.removeItem('role');
+        window.location.href = 'login.html';
+      }
+      document
+        .getElementById('logout-button')
+        .addEventListener('click', logout);
+
+      function displayLinksBasedOnRole() {
+        const role = localStorage.getItem('role');
+        const adminLinks = document.querySelectorAll('.admin-link');
+        adminLinks.forEach(
+          (link) => (link.style.display = role === 'admin' ? 'block' : 'none')
+        );
+      }
+      displayLinksBasedOnRole();
+
+      async function checkMarketStatus() {
+        try {
+          const response = await fetch(
+            'http://52.90.144.175:5000/api/admin/market-hours/is-open',
+            {
+              headers: {
+                Authorization: `Bearer ${localStorage.getItem('token')}`,
+              },
+            }
+          );
+          if (!response.ok) {
+            const error = await response.json();
+            console.error(`Error checking market status: ${error.message}`);
+            return false;
+          }
+          const data = await response.json();
+          return data.isOpen;
+        } catch (error) {
+          console.error('Error checking market status:', error);
+          return false;
+        }
+      }
+
+      async function updateButtonStates() {
+        const isMarketOpen = await checkMarketStatus();
+        const buyButtons = document.querySelectorAll('.buy-button');
+        const sellButtons = document.querySelectorAll('.sell-button');
+        buyButtons.forEach((button) => (button.disabled = !isMarketOpen));
+        sellButtons.forEach((button) => (button.disabled = !isMarketOpen));
+      }
+      setInterval(updateButtonStates, 60000);
+    </script>
+  </body>
+</html>

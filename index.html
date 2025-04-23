@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Home</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script>
+      function checkIfLoggedIn() {
+        const token = localStorage.getItem('token');
+        const username = localStorage.getItem('username');
+        if (!token || !username) window.location.href = 'index.html';
+      }
+      checkIfLoggedIn();
+    </script>
+  </head>
+  <body>
+    <header>
+      <h1>Stock Trading System</h1>
+      <nav>
+        <ul>
+          <li>
+            <b><a href="index.html">Home</a></b>
+          </li>
+          <li><a href="trade.html">Trade</a></li>
+          <li><a href="portfolio.html">Portfolio</a></li>
+          <li class="admin-link" style="display: none">
+            <a href="admin.html">Admin</a>
+          </li>
+        </ul>
+      </nav>
+    </header>
+    <div id="time-display">
+      <p>Market Time (EST): <span id="est-time"></span></p>
+    </div>
+    <h2 id="logged-in-user"></h2>
+    <button id="logout-button">Logout</button>
+    <section class="banner">
+      <img src="images/stockimage1.png" alt="Stock Market" class="home-img" />
+      <div class="banner-text">
+        <h2>Invest Smart, Trade Fast</h2>
+        <p>Real-time stock trading with live updates</p>
+        <button onclick="window.location.href='trade.html'">
+          Start Trading
+        </button>
+      </div>
+    </section>
+
+    <script>
+      function updateTimes() {
+        const estTimeElement = document.getElementById('est-time');
+        const now = new Date();
+        const options = {
+          timeZone: 'America/New_York',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: true,
+        };
+        estTimeElement.textContent = new Intl.DateTimeFormat(
+          'en-US',
+          options
+        ).format(now);
+      }
+      setInterval(updateTimes, 1000);
+      updateTimes();
+
+      function displayLoggedInUser() {
+        const username = localStorage.getItem('username');
+        const userDisplay = document.getElementById('logged-in-user');
+        userDisplay.textContent = username
+          ? `Logged in as: ${username}`
+          : 'No user is logged in.';
+      }
+      displayLoggedInUser();
+
+      function logout() {
+        localStorage.removeItem('token');
+        localStorage.removeItem('username');
+        localStorage.removeItem('role');
+        window.location.href = 'login.html';
+      }
+      document
+        .getElementById('logout-button')
+        .addEventListener('click', logout);
+
+      function displayLinksBasedOnRole() {
+        const role = localStorage.getItem('role');
+        const adminLinks = document.querySelectorAll('.admin-link');
+        adminLinks.forEach(
+          (link) => (link.style.display = role === 'admin' ? 'block' : 'none')
+        );
+      }
+      displayLinksBasedOnRole();
+    </script>
+  </body>
+</html>
